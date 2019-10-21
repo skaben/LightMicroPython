@@ -1,9 +1,12 @@
 # LightMicroPython
-New light hardware on ESP32/ Miropython software for it.
+New light hardware on ESP32/ Miropython and software for it.
 
 boot.py - start initialization, SSID, password, MQTT-broker address
+
 main.py - custom logic for control RGB light, main white light and alarm sireen by mqtt.
+
 umqttsimple.py - some shit for MQTT functions, not to change. Found into Internet and used "as is".
+
 
 Управляющая программа для "люстры" нового поколения.
 Пока обработка только RGB - канала устройства, на основе будет допилена прошивка для 
