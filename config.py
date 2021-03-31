@@ -5,7 +5,6 @@ from ubinascii import hexlify
 ENV = 'dev'  
 
 cfg = {
-    'broker_ip': '192.168.137.1',
     'client_id': hexlify(machine.unique_id()),
     'mac': hexlify(WLAN().config('mac')),
     'last_message': 0,

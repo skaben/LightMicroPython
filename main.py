@@ -5,6 +5,7 @@ import network
 import urandom
 import umqttsimple
 import config
+import webrepl
 
 pwm = dict()
 station = network.WLAN(network.STA_IF)
@@ -20,6 +21,7 @@ def wifi_init():
             time.sleep(.25)
     print('Connection successful')
     print(station.ifconfig())
+    webrepl.start()
     
 def randint(min, max):
     span = int(max) - int(min) + 1
@@ -27,6 +29,16 @@ def randint(min, max):
     offset = urandom.getrandbits(30) // div
     val = int(min) + offset
     return val
+
+def reset_out():
+    config.pins['STR'].value(0)
+    config.pins['LGT'].value(0)
+    try:
+        for color in pwm:
+            pwm[color].duty(0)
+    except:
+        print('cannot set PWM, check config:\n{}'.format(pwm))
+        return None
 
 def set_pwm():
     try:
@@ -101,7 +113,6 @@ def manage_rgb(payload, chan_name):
 
 def manage_discr(payload, chan_name):
     if len(payload) < 3 or (len(payload)-1)%2 != 0:
-        # todo: 芯斜褉邪斜芯褌褔懈泻 芯褕懈斜芯泻 薪邪 褋谢褍褔邪泄 泻褉懈胁芯谐芯 褎芯褉屑邪褌邪
         return
     manage_seq[chan_name]['current_command'] = payload 
     manage_seq[chan_name].update({
@@ -116,7 +127,7 @@ def manage_discr(payload, chan_name):
         manage_seq[chan_name]['onoff'].append(payload[i * 2])
         manage_seq[chan_name]['time_static'].append(payload[i * 2 + 1])
     config.pins[chan_name].value(int(manage_seq[chan_name]['onoff'][manage_seq[chan_name]['count']]))
-    manage_seq[chan_name]['time_slice'] = time_phase(str(manage_seq['RGB']['time_static'][0]))
+    manage_seq[chan_name]['time_slice'] = time_phase(str(manage_seq[chan_name]['time_static'][0]))
 
 def exec_discr(chan_name):
     if (time.ticks_ms() - manage_seq[chan_name]['time_current']) >= manage_seq[chan_name]['time_slice']:
@@ -132,20 +143,21 @@ def exec_discr(chan_name):
         config.pins[chan_name].value(int(manage_seq[chan_name]['onoff'][manage_seq[chan_name]['count']]))
         manage_seq[chan_name]['time_current'] = time.ticks_ms()
 
+
 def parse_command(new_command):
-    for cmd in manage_seq:
+    for cmd, val in manage_seq.items():
         data = new_command.get(cmd) 
-        if data == None:
+        if not data:
             continue
-        if data != manage_seq[cmd]['current_command']:
+        if data != val.get('current_command'):
             payload = data.split('/')
             if payload[0] == 'RESET':
                 machine.reset()
             else:
                 if cmd == 'RGB':
-                    manage_rgb(payload,cmd)
+                    manage_rgb(payload, cmd)
                 else:
-                    manage_discr(payload,cmd)
+                    manage_discr(payload, cmd)
 
 def mqtt_callback(topic, msg):
     if topic in (config.topics['sub'], config.topics['sub_id']):
@@ -160,15 +172,11 @@ def connect_and_subscribe():
     bList = str(station.ifconfig()[0]).split('.')
     bList[-1] = '254'
     brokerIP = '.'.join(bList)
- #   print(brokerIP)
     server = brokerIP
     port = config.cfg.get('port')
     user = config.cfg.get('user')
     password = config.cfg.get('password')
- #   print(user)
- #   print(password)
     client = umqttsimple.MQTTClient(config.cfg.get('client_id'), server, port, user, password)
- #   client = umqttsimple.MQTTClient(config.cfg.get('client_id'), server)
     client.set_callback(mqtt_callback)
     try:
         client.connect()
@@ -179,7 +187,6 @@ def connect_and_subscribe():
     for t in sub_topics:
         client.subscribe(t)
     print('connected to {}, subscribed to {}'.format(server, sub_topics))
-    config.pins['green'].value(0)
     cmd_out = 'CUP/{"lts":"'+str(time.ticks_ms())+'"}'
     try:
         client.publish(config.topics['pub_id'], cmd_out)
@@ -187,6 +194,7 @@ def connect_and_subscribe():
     except:
         manage_seq['RGB']['mqtt_conn'] = False
         restart_and_reconnect()
+    reset_out()
     return client
 
 def restart_and_reconnect():
@@ -233,8 +241,7 @@ def mqtt_init():
 def main():
     global pwm
     pwm = {p: machine.PWM(config.pins[p], freq=1000) for p in config.pins if p in ('red', 'green', 'blue')}
-    config.pins['STR'].value(0)
-    config.pins['LGT'].value(0)
+    reset_out()
     wifi_init()
     client = mqtt_init()    
     while True:
