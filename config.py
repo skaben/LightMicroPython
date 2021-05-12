@@ -5,7 +5,6 @@ from ubinascii import hexlify
 ENV = 'dev'  
 
 cfg = {
-    'broker_ip': '192.168.137.1',
     'client_id': hexlify(machine.unique_id()),
     'mac': hexlify(WLAN().config('mac')),
     'last_message': 0,
@@ -37,10 +36,11 @@ pins = {
 }
 
 topics = {
-    'sub': b'RGB',
-    'pub': b'RGBASK',
-    'pub_id': b'RGBASK/' + cfg['mac'],
-    'sub_id': b'RGB/' + cfg['mac']
+    'sub': b'rgb/all/cup',
+    'sub_id': b'rgb/' + cfg['mac'] + b'/cup',
+    'sub_ping': b'rgb/all/ping',
+    'pub': b'ask/rgb/all/cup',
+    'pub_id_pong': b'ask/rgb/' + cfg['mac'] + b'/pong'
 }
 
 
