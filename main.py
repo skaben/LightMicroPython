@@ -8,6 +8,7 @@ import config
 import webrepl
 
 pwm = dict()
+ping_msg = b''
 station = network.WLAN(network.STA_IF)
 
 def wifi_init():
@@ -160,13 +161,18 @@ def parse_command(new_command):
                     manage_discr(payload, cmd)
 
 def mqtt_callback(topic, msg):
+    global ping_msg
     if topic in (config.topics['sub'], config.topics['sub_id']):
         try:
-            parse_command(ujson.loads(msg))
+            cmd = ujson.loads(msg)
+            datahold = cmd.get('datahold')
+            parse_command(datahold)
             return 
         except:
             time.sleep(.2)
             return
+    elif (topic == config.topics['sub_ping']):
+        ping_msg = msg
 
 def connect_and_subscribe():
     bList = str(station.ifconfig()[0]).split('.')
@@ -187,15 +193,19 @@ def connect_and_subscribe():
     for t in sub_topics:
         client.subscribe(t)
     print('connected to {}, subscribed to {}'.format(server, sub_topics))
-    cmd_out = 'CUP/{"lts":"'+str(time.ticks_ms())+'"}'
     try:
-        client.publish(config.topics['pub_id'], cmd_out)
+        cmd_out = '{"timestamp":1}'
+        client.publish(config.topics['pub'], cmd_out)
         manage_seq['RGB']['mqtt_conn'] = True
     except:
         manage_seq['RGB']['mqtt_conn'] = False
         restart_and_reconnect()
     reset_out()
     return client
+
+def send_pong(msg, client):
+    client.publish(config.topics['pub_id_pong'], msg)
+    return
 
 def restart_and_reconnect():
     print('Failed to connect to MQTT broker. Reconnecting...')
@@ -240,6 +250,7 @@ def mqtt_init():
     
 def main():
     global pwm
+    global ping_msg
     pwm = {p: machine.PWM(config.pins[p], freq=1000) for p in config.pins if p in ('red', 'green', 'blue')}
     reset_out()
     wifi_init()
@@ -249,6 +260,9 @@ def main():
             client.check_msg()
         except OSError as e:
             client = mqtt_init()    
+        if ping_msg != b'':
+            send_pong(ping_msg, client)
+            ping_msg = b''
         if manage_seq['RGB'].get('len') > 0:
             if (time.ticks_ms() - manage_seq['RGB']['time_current']) >= manage_seq['RGB']['time_slice']:
                 before = manage_seq['RGB']['count']
