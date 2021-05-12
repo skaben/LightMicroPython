@@ -1,5 +1,5 @@
 # LightMicroPython
-New light hardware on ESP32/ Miropython and software for it.
+New light hardware on ESP8266/ Miropython and software for it.
 
 boot.py - start initialization, SSID, password, MQTT-broker address
 
