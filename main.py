@@ -6,13 +6,21 @@ import urandom
 import umqttsimple
 import config
 import webrepl
+import ubinascii
 
 pwm = dict()
 ping_msg = b''
+
+hostName = b'Light' + config.cfg['client_id'][0:4]
+
 station = network.WLAN(network.STA_IF)
+station.active(True)
+station.config(dhcp_hostname=hostName)
+
 
 def wifi_init():
     station.active(True)
+    station.config(dhcp_hostname=hostName)
     station.connect(config.cfg['wlan_ssid'], config.cfg['wlan_password'])
     while station.isconnected() == False:
         for x in range (6):
@@ -92,6 +100,10 @@ def time_phase(time_change):
 def manage_rgb(payload, chan_name):
     if len(payload) < 4 or (len(payload)-1)%3 != 0:
         return
+    cList = set(payload) & set(manage_seq[chan_name]['current_command'])
+    if len(payload) == len(cList):
+        print("Already executed")
+        return
     manage_seq[chan_name]['current_command'] = payload 
     manage_seq[chan_name].update({
         'mode': payload[-1],  
@@ -114,6 +126,10 @@ def manage_rgb(payload, chan_name):
 
 def manage_discr(payload, chan_name):
     if len(payload) < 3 or (len(payload)-1)%2 != 0:
+        return
+    cList = set(payload) & set(manage_seq[chan_name]['current_command'])
+    if len(payload) == len(cList):
+        print("Already executed")
         return
     manage_seq[chan_name]['current_command'] = payload 
     manage_seq[chan_name].update({
