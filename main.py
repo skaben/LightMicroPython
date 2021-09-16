@@ -6,12 +6,11 @@ import urandom
 import umqttsimple
 import config
 import webrepl
-import ubinascii
 
 pwm = dict()
 ping_msg = b''
 
-hostName = b'Light' + config.cfg['client_id'][0:4]
+hostName = b'Light' + config.cfg['client_id']
 
 station = network.WLAN(network.STA_IF)
 station.active(True)
