@@ -22,7 +22,7 @@ def wifi_init():
     station.config(dhcp_hostname=hostName)
     station.connect(config.cfg['wlan_ssid'], config.cfg['wlan_password'])
     while station.isconnected() == False:
-        for x in range (6):
+        for x in range(6):
             pwm['red'].duty(1023)
             time.sleep(.25)
             pwm['red'].duty(0)
@@ -30,13 +30,15 @@ def wifi_init():
     print('Connection successful')
     print(station.ifconfig())
     webrepl.start()
-    
+
+
 def randint(min, max):
     span = int(max) - int(min) + 1
     div = 0x3fffffff // span
     offset = urandom.getrandbits(30) // div
     val = int(min) + offset
     return val
+
 
 def reset_out():
     config.pins['STR'].value(0)
@@ -48,30 +50,34 @@ def reset_out():
         print('cannot set PWM, check config:\n{}'.format(pwm))
         return None
 
+
 def set_pwm():
     try:
         for color in pwm:
             pwm[color].duty(int(manage_seq['RGB'][color]*config.colorTbl[color]))
-    except:
+    except:  # noqa
         print('cannot set PWM, check config:\n{}'.format(pwm))
         return None
+
 
 def _hex(slice: str):
     return int(int(slice, 16) * 4)
 
+
 def create_peripheral():
-    peripheral_dict =  {
-                          'len': 0,
-                          'mode': '',
-                          'onoff': [],
-                          'time_static': [],
-                          'time_current': 0,
-                          'time_slice': 0,
-                          'count': 0,
-                          'last' : 0,
-                          'current_command' : []
-                        }  
+    peripheral_dict = {
+        'len': 0,
+        'mode': '',
+        'onoff': [],
+        'time_static': [],
+        'time_current': 0,
+        'time_slice': 0,
+        'count': 0,
+        'last': 0,
+        'current_command': []
+    }
     return peripheral_dict
+
 
 manage_seq = dict()
 manage_seq['LGT'] = create_peripheral()
@@ -79,15 +85,16 @@ manage_seq['STR'] = create_peripheral()
 manage_seq['RGB'] = create_peripheral()
 
 manage_seq['RGB'].update({
-            'mqtt_conn' : False,
+            'mqtt_conn': False,
             'color': [],
             'red': 0,
             'green': 0,
             'blue': 0,
-            'delta':{'red':0,'green':0,'blue':0},
+            'delta': {'red': 0,'green': 0,'blue': 0},
             'time_change': [],
-            'quant': {'num':config.cfg['quant_num'], 'count':0, 'flag':0},
+            'quant': {'num': config.cfg['quant_num'], 'count': 0, 'flag': 0},
 })
+
 
 def time_phase(time_change):
     t = time_change.split('-')
@@ -95,6 +102,7 @@ def time_phase(time_change):
         return int(t[0])
     else:
         return randint(t[0],t[1])
+
 
 def manage_rgb(payload, chan_name):
     if len(payload) < 4 or (len(payload)-1)%3 != 0:
@@ -123,6 +131,7 @@ def manage_rgb(payload, chan_name):
     manage_seq[chan_name]['quant']['flag'] = 0
     manage_pwm(0)
 
+
 def manage_discr(payload, chan_name):
     if len(payload) < 3 or (len(payload)-1)%2 != 0:
         return
@@ -136,7 +145,7 @@ def manage_discr(payload, chan_name):
         'len': int((len(payload)-1)/2),
         'onoff': [],
         'time_static': [],
-        'count':0,
+        'count': 0,
     })
     manage_seq[chan_name]['time_change'] = []
     for i in range(manage_seq[chan_name]['len']):
@@ -144,6 +153,7 @@ def manage_discr(payload, chan_name):
         manage_seq[chan_name]['time_static'].append(payload[i * 2 + 1])
     config.pins[chan_name].value(int(manage_seq[chan_name]['onoff'][manage_seq[chan_name]['count']]))
     manage_seq[chan_name]['time_slice'] = time_phase(str(manage_seq[chan_name]['time_static'][0]))
+
 
 def exec_discr(chan_name):
     if (time.ticks_ms() - manage_seq[chan_name]['time_current']) >= manage_seq[chan_name]['time_slice']:
@@ -175,6 +185,7 @@ def parse_command(new_command):
                 else:
                     manage_discr(payload, cmd)
 
+
 def mqtt_callback(topic, msg):
     global ping_msg
     if topic in (config.topics['sub'], config.topics['sub_id']):
@@ -189,6 +200,7 @@ def mqtt_callback(topic, msg):
     elif (topic == config.topics['sub_ping']):
         ping_msg = msg
 
+
 def connect_and_subscribe():
     bList = str(station.ifconfig()[0]).split('.')
     bList[-1] = '254'
@@ -197,7 +209,7 @@ def connect_and_subscribe():
     port = config.cfg.get('port')
     user = config.cfg.get('user')
     password = config.cfg.get('password')
-    client = umqttsimple.MQTTClient(config.cfg.get('client_id'), server, port, user, password)
+    client = umqttsimple.MQTTClient(config.cfg.get('client_id'), server, port, user, password, keepalive=30)
     client.set_callback(mqtt_callback)
     try:
         client.connect()
@@ -218,9 +230,11 @@ def connect_and_subscribe():
     reset_out()
     return client
 
+
 def send_pong(msg, client):
     client.publish(config.topics['pub_id_pong'], msg)
     return
+
 
 def restart_and_reconnect():
     print('Failed to connect to MQTT broker. Reconnecting...')
@@ -233,36 +247,50 @@ def restart_and_reconnect():
         pwm['green'].duty(0)
         time.sleep(.25)
 
+
 def manage_pwm_delta(prev_idx):
-    if manage_seq['RGB']['quant']['flag'] == 0:
-        idx = manage_seq['RGB']['count']
-        color_now = manage_seq['RGB']['color'][idx]
-        color_prev = manage_seq['RGB']['color'][prev_idx]
-        dred = int((_hex(color_now[:2]) - _hex(color_prev[:2]))/manage_seq['RGB']['quant']['num'])
-        dgreen = int((_hex(color_now[2:4]) - _hex(color_prev[2:4]))/manage_seq['RGB']['quant']['num'])
-        dblue = int((_hex(color_now[4:6]) - _hex(color_prev[4:6]))/manage_seq['RGB']['quant']['num'])
-        manage_seq['RGB']['delta']['red'] = dred
-        manage_seq['RGB']['delta']['green'] = dgreen
-        manage_seq['RGB']['delta']['blue'] = dblue
-        manage_seq['RGB']['quant']['flag'] = 1
-    manage_seq['RGB']['quant']['count'] += 1
-    for key in manage_seq['RGB']['delta']:
-        manage_seq['RGB'][key] += manage_seq['RGB']['delta'][key]
+    rgb_seq = manage_seq['RGB']
+    quant = rgb_seq['quant']
+
+    if quant['flag'] == 0:
+        idx = rgb_seq['count']
+        color_now = rgb_seq['color'][idx]
+        color_prev = rgb_seq['color'][prev_idx]
+
+        delta_red = int((_hex(color_now[:2]) - _hex(color_prev[:2])) / quant['num'])
+        delta_green = int((_hex(color_now[2:4]) - _hex(color_prev[2:4])) / quant['num'])
+        delta_blue = int((_hex(color_now[4:6]) - _hex(color_prev[4:6])) / quant['num'])
+
+        rgb_seq['delta']['red'] = delta_red
+        rgb_seq['delta']['green'] = delta_green
+        rgb_seq['delta']['blue'] = delta_blue
+
+        quant['flag'] = 1
+
+    quant['count'] += 1
+
+    for key in rgb_seq['delta']:
+        rgb_seq[key] += rgb_seq['delta'][key]
+
     set_pwm()
-  
+
+
 def manage_pwm(idx):
-    manage_seq['RGB']['red'] = _hex(manage_seq['RGB']['color'][idx][:2])
-    manage_seq['RGB']['green'] = _hex(manage_seq['RGB']['color'][idx][2:4])
-    manage_seq['RGB']['blue'] = _hex(manage_seq['RGB']['color'][idx][4:6])
+    _color = manage_seq['RGB']['color']
+    manage_seq['RGB']['red'] = _hex(_color[idx][:2])
+    manage_seq['RGB']['green'] = _hex(_color[idx][2:4])
+    manage_seq['RGB']['blue'] = _hex(_color[idx][4:6])
     set_pwm()
+
 
 def mqtt_init():
     manage_seq['RGB']['mqtt_conn'] = False
-    while manage_seq['RGB']['mqtt_conn'] == False:
+    while not manage_seq['RGB']['mqtt_conn']:
         restart_and_reconnect()
         client = connect_and_subscribe()
     return client
-    
+
+
 def main():
     global pwm
     global ping_msg
@@ -312,6 +340,5 @@ def main():
         if manage_seq['LGT'].get('len') > 0:
             exec_discr('LGT')
 
+
 main()
-
-
