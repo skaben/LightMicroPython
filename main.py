@@ -3,7 +3,7 @@ import time
 import ujson
 import network
 import urandom
-import umqttsimple
+from umqtt.robust import MQTTClient
 import config
 import webrepl
 
@@ -209,7 +209,7 @@ def connect_and_subscribe():
     port = config.cfg.get('port')
     user = config.cfg.get('user')
     password = config.cfg.get('password')
-    client = umqttsimple.MQTTClient(config.cfg.get('client_id'), server, port, user, password, keepalive=30)
+    client = MQTTClient(config.cfg.get('client_id'), server, port, user, password, keepalive=30)
     client.set_callback(mqtt_callback)
     try:
         client.connect()
